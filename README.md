@@ -7,7 +7,7 @@ It can clean up a specific repository as well as all repos within an aws account
 1. Retrieve repo from ecr
 2. Get repo images
 3. Add all images without tags to deletion
-4. Sort the remaining images in alphanumeric order with respect to their integer parts
+4. Sort the remaining images by 'Pushed at' order
 5. Add n oldest images to deletion
 6. Delete images from the repository
 
@@ -17,7 +17,7 @@ It can clean up a specific repository as well as all repos within an aws account
 ### Default values
     aws.region = eu-central-1
     dry-run = false
-    amount-to-keep = 100
+    keep = 100
 
 ### Examples
 clean up all repos
@@ -42,11 +42,11 @@ important to think about adding '=' signs for boolean parameters, otherwise the
 parsing of the command line's options stops. [Issue hilighted here.](https://github.com/WeltN24/ecr-cleaner/issues/5)
 
 ### Deploying as lambda to aws
-If you wish to clean up your repositories periodically you can to this with the help of terraform. 
 
-in the root of the repo, this creates an archive which will be 
+If you wish to clean up your repositories periodically you can do this with the help of terraform.
+In the root of the repo:
 
-1. You have to fork the repo
+1. you have to fork the repo
 2. execute `make package`
 3. go to into terraform folder
 4. set up the needed variables
@@ -57,8 +57,9 @@ in the root of the repo, this creates an archive which will be
     * `dry-run` (boolean) if you want to dry run
 5. run terraform
 
-If you want to persist the state it's the easiest way to create a shell script and write the remote state to s3. Here is an example:
-    
+If you want to keep the state, the easiest way is to create a shell script and write the remote state to s3.
+Here is an example:
+
     #!/bin/bash
     terraform get -update
     terraform remote config \
@@ -66,15 +67,15 @@ If you want to persist the state it's the easiest way to create a shell script a
         -backend-config="bucket=maintaince" \
         -backend-config="key=ecr_cleaner/terraform.tfstate" \
         -backend-config="region=eu-central-1"
-        
-Execute the script the get remote state from s3 or create one and execute terraform afterwards.
+
+Execute the script: get remote state from s3 or create one and execute terraform afterwards.
 
 ### Run as Docker container
 
 Build:
 
 	docker build -t ecr-cleaner .
-	
+
 Run:
 
 	docker run -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -it --rm ecr-cleaner -dry-run=true -aws.region=eu-west-1
