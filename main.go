@@ -9,7 +9,15 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ecr"
+	"regexp"
+
+	"strings"
 )
+
+type TagFiltering struct {
+	regExp string
+	action string
+}
 
 func main() {
 	var (
@@ -17,10 +25,24 @@ func main() {
 		awsRegion     = flag.String("aws.region", "eu-central-1", "AWS region")
 		repoToProcess = flag.String("repo", "", "repository you want to process, empty if you want all")
 		dryRun        = flag.Bool("dry-run", false, "run the code without actual deleting")
+		tagRE         = flag.String("tag-regexp", "", "regexp for filtering images")
+		postFilter    = flag.String("post-filter-action", "delete", "images with regexp tags can be deleted or saved.")
 		err           error
+		tagFilter     TagFiltering
 	)
 
 	flag.Parse()
+        _, err = regexp.Compile(*tagRE)
+	tagFilter.regExp = *tagRE
+	if err != nil {
+		log.Println("Incorrect RegExp")
+		log.Fatal(err)
+	}
+	tagFilter.action = strings.ToLower(*postFilter)
+	if ! strings.Contains("deletesave", tagFilter.action){
+		log.Fatalf("Incorrect value %v . only delete and save are supported", tagFilter.action)
+	}
+
 	ecrCli := ecr.New(session.New(), aws.NewConfig().WithRegion(*awsRegion))
 	repos := []string{*repoToProcess}
 	if *repoToProcess == "" {
@@ -39,17 +61,28 @@ func main() {
 		}
 		log.Printf("Number of images in %v: %v", repoName, len(images))
 
-		err = cleanupImages(ecrCli, repoName, images, *dryRun, *amountToKeep)
+		err = cleanupImages(ecrCli, repoName, images, *dryRun, *amountToKeep, tagFilter)
 		if err != nil {
 			log.Fatalf("Could not clean up images for repo %v: %v", repoName, err)
 		}
 	}
 }
 
-func cleanupImages(ecrCli *ecr.ECR, repoName string, images []*ecr.ImageDetail, dryRun bool, amountToKeep int) error {
+func cleanupImages(ecrCli *ecr.ECR, repoName string, images []*ecr.ImageDetail, dryRun bool, amountToKeep int, tagFilter TagFiltering) error {
 	var deleteImageIDs []*ecr.ImageDetail
 
 	imagesNoTag, imagesWithTag := separateHavingTag(images)
+
+	//filter image tags with regexp
+	imagesWithRETag := filterTags(imagesWithTag, tagFilter.regExp)
+
+	//based on post-filter-action filtered images will be saved or deleted
+	if strings.Contains(tagFilter.action, "delete") {
+		imagesWithTag = imagesWithRETag
+	} else {
+		imagesWithTag = excludeImages(imagesWithTag, imagesWithRETag)
+        }
+
 	//delete all images without tag
 	deleteImageIDs = append(deleteImageIDs, imagesNoTag...)
 
@@ -89,6 +122,48 @@ func cleanupImages(ecrCli *ecr.ECR, repoName string, images []*ecr.ImageDetail, 
 	log.Printf("deleted %v images in repo %v", len(deleteImageIDs), repoName)
 
 	return nil
+}
+
+func excludeImages(srcImages []*ecr.ImageDetail, excludeImages []*ecr.ImageDetail) (result []*ecr.ImageDetail) {
+	var addImg bool
+	result = srcImages[:0]
+
+
+	for _, image := range srcImages{
+		addImg = true
+		for _, excImage := range excludeImages{
+			if image.ImageDigest == excImage.ImageDigest {
+				addImg = false
+				break
+			}
+		}
+		if addImg { result = append(result, image) }
+
+	}
+	return result
+
+}
+
+func filterTags(images []*ecr.ImageDetail, tagRE string) (imagesWithRETags []*ecr.ImageDetail) {
+	var addImage bool
+	if tagRE == "" {
+           // skipping  check if original regexp was empty
+		return images
+        }
+
+	for _, image := range images {
+		addImage = false
+		for _, tag := range image.ImageTags{
+			matched, err := regexp.MatchString(tagRE, *tag)
+			if err != nil { log.Fatal(err) }
+			if matched {
+				addImage = true
+				break
+			}
+		}
+		if addImage { imagesWithRETags = append(imagesWithRETags, image) }
+	}
+	return imagesWithRETags
 }
 
 func buildImageIdentifier(images []*ecr.ImageDetail) []*ecr.ImageIdentifier {
