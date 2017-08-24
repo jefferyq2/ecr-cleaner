@@ -14,6 +14,7 @@ import (
 	"strings"
 )
 
+// TagFiltering type for image tag filtering
 type TagFiltering struct {
 	regExp string
 	action string
@@ -32,14 +33,14 @@ func main() {
 	)
 
 	flag.Parse()
-        _, err = regexp.Compile(*tagRE)
+	_, err = regexp.Compile(*tagRE)
 	tagFilter.regExp = *tagRE
 	if err != nil {
 		log.Println("Incorrect RegExp")
 		log.Fatal(err)
 	}
 	tagFilter.action = strings.ToLower(*postFilter)
-	if ! strings.Contains("deletesave", tagFilter.action){
+	if !strings.Contains("deletesave", tagFilter.action) {
 		log.Fatalf("Incorrect value %v . only delete and save are supported", tagFilter.action)
 	}
 
@@ -81,7 +82,7 @@ func cleanupImages(ecrCli *ecr.ECR, repoName string, images []*ecr.ImageDetail, 
 		imagesWithTag = imagesWithRETag
 	} else {
 		imagesWithTag = excludeImages(imagesWithTag, imagesWithRETag)
-        }
+	}
 
 	//delete all images without tag
 	deleteImageIDs = append(deleteImageIDs, imagesNoTag...)
@@ -128,16 +129,17 @@ func excludeImages(srcImages []*ecr.ImageDetail, excludeImages []*ecr.ImageDetai
 	var addImg bool
 	result = srcImages[:0]
 
-
-	for _, image := range srcImages{
+	for _, image := range srcImages {
 		addImg = true
-		for _, excImage := range excludeImages{
+		for _, excImage := range excludeImages {
 			if image.ImageDigest == excImage.ImageDigest {
 				addImg = false
 				break
 			}
 		}
-		if addImg { result = append(result, image) }
+		if addImg {
+			result = append(result, image)
+		}
 
 	}
 	return result
@@ -147,21 +149,25 @@ func excludeImages(srcImages []*ecr.ImageDetail, excludeImages []*ecr.ImageDetai
 func filterTags(images []*ecr.ImageDetail, tagRE string) (imagesWithRETags []*ecr.ImageDetail) {
 	var addImage bool
 	if tagRE == "" {
-           // skipping  check if original regexp was empty
+		// skipping  check if original regexp was empty
 		return images
-        }
+	}
 
 	for _, image := range images {
 		addImage = false
-		for _, tag := range image.ImageTags{
+		for _, tag := range image.ImageTags {
 			matched, err := regexp.MatchString(tagRE, *tag)
-			if err != nil { log.Fatal(err) }
+			if err != nil {
+				log.Fatal(err)
+			}
 			if matched {
 				addImage = true
 				break
 			}
 		}
-		if addImage { imagesWithRETags = append(imagesWithRETags, image) }
+		if addImage {
+			imagesWithRETags = append(imagesWithRETags, image)
+		}
 	}
 	return imagesWithRETags
 }
