@@ -7,9 +7,11 @@ It can clean up a specific repository as well as all repos within an aws account
 1. Retrieve repo from ecr
 2. Get repo images
 3. Add all images without tags to deletion
-4. Sort the remaining images by 'Pushed at' order
-5. Add n oldest images to deletion
-6. Delete images from the repository
+4. Filter images with tag regexp
+5. Add for deletion or save filtered images
+6. Sort the remaining images by 'Pushed at' order
+7. Add n oldest images to deletion
+8. Delete images from the repository
 
 ### Installation
     go get github.com/WeltN24/ecr-cleaner
@@ -18,6 +20,8 @@ It can clean up a specific repository as well as all repos within an aws account
     aws.region = eu-central-1
     dry-run = false
     keep = 100
+    tag-regexp = .*
+    post-filter-action = delete
 
 ### Examples
 clean up all repos
@@ -35,6 +39,15 @@ go for a dry run
 leave n images in repo
 
 `ecr-cleaner -aws.region=eu-west-1 -repo=my-awesome-repo -keep=5`
+
+delete all images with tags contain foo
+
+`ecr-cleaner -aws.region=eu-west-1 -repo=my-awesome-repo -keep=0 -tag-regexp=foo`
+
+delete all images EXCEPT with tags contain saveME
+
+`ecr-cleaner -aws.region=eu-west-1 -repo=my-awesome-repo -keep=0 -tag-regexp=saveMe -post-filter-action=save`
+
 
 **Note**: Most of the parameters could be specified without '=' sign.
 But because of the usage of [parse flag](https://golang.org/pkg/flag/) it is
