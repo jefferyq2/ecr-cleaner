@@ -34,11 +34,12 @@ func main() {
 
 	flag.Parse()
 	_, err = regexp.Compile(*tagRE)
-	tagFilter.regExp = *tagRE
 	if err != nil {
 		log.Println("Incorrect RegExp")
 		log.Fatal(err)
 	}
+	tagFilter.regExp = *tagRE
+
 	tagFilter.action = strings.ToLower(*postFilter)
 	if !strings.Contains("deletesave", tagFilter.action) {
 		log.Fatalf("Incorrect value %v . only delete and save are supported", tagFilter.action)
@@ -127,7 +128,6 @@ func cleanupImages(ecrCli *ecr.ECR, repoName string, images []*ecr.ImageDetail, 
 
 func excludeImages(srcImages []*ecr.ImageDetail, excludeImages []*ecr.ImageDetail) (result []*ecr.ImageDetail) {
 	var addImg bool
-	result = srcImages[:0]
 
 	for _, image := range srcImages {
 		addImg = true
@@ -147,26 +147,21 @@ func excludeImages(srcImages []*ecr.ImageDetail, excludeImages []*ecr.ImageDetai
 }
 
 func filterTags(images []*ecr.ImageDetail, tagRE string) (imagesWithRETags []*ecr.ImageDetail) {
-	var addImage bool
 	if tagRE == "" {
 		// skipping  check if original regexp was empty
 		return images
 	}
 
 	for _, image := range images {
-		addImage = false
 		for _, tag := range image.ImageTags {
 			matched, err := regexp.MatchString(tagRE, *tag)
 			if err != nil {
 				log.Fatal(err)
 			}
 			if matched {
-				addImage = true
+				imagesWithRETags = append(imagesWithRETags, image)
 				break
 			}
-		}
-		if addImage {
-			imagesWithRETags = append(imagesWithRETags, image)
 		}
 	}
 	return imagesWithRETags
