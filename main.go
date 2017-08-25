@@ -76,13 +76,13 @@ func cleanupImages(ecrCli *ecr.ECR, repoName string, images []*ecr.ImageDetail, 
 	imagesNoTag, imagesWithTag := separateHavingTag(images)
 
 	//filter image tags with regexp
-	imagesWithRETag := filterTags(imagesWithTag, tagFilter.regExp)
+	imagesWithRETag, imagesWoRETag := filterTags(imagesWithTag, tagFilter.regExp)
 
 	//based on post-filter-action filtered images will be saved or deleted
 	if strings.Contains(tagFilter.action, "delete") {
 		imagesWithTag = imagesWithRETag
 	} else {
-		imagesWithTag = excludeImages(imagesWithTag, imagesWithRETag)
+		imagesWithTag = imagesWoRETag
 	}
 
 	//delete all images without tag
@@ -126,30 +126,10 @@ func cleanupImages(ecrCli *ecr.ECR, repoName string, images []*ecr.ImageDetail, 
 	return nil
 }
 
-func excludeImages(srcImages []*ecr.ImageDetail, excludeImages []*ecr.ImageDetail) (result []*ecr.ImageDetail) {
-	var addImg bool
-
-	for _, image := range srcImages {
-		addImg = true
-		for _, excImage := range excludeImages {
-			if image.ImageDigest == excImage.ImageDigest {
-				addImg = false
-				break
-			}
-		}
-		if addImg {
-			result = append(result, image)
-		}
-
-	}
-	return result
-
-}
-
-func filterTags(images []*ecr.ImageDetail, tagRE string) (imagesWithRETags []*ecr.ImageDetail) {
+func filterTags(images []*ecr.ImageDetail, tagRE string) (imagesWithRETags []*ecr.ImageDetail, imgsWoRETags []*ecr.ImageDetail) {
 	if tagRE == "" {
 		// skipping  check if original regexp was empty
-		return images
+		return images, imgsWoRETags
 	}
 
 	for _, image := range images {
@@ -163,8 +143,11 @@ func filterTags(images []*ecr.ImageDetail, tagRE string) (imagesWithRETags []*ec
 				break
 			}
 		}
+		if (len(imagesWithRETags) == 0) || (imagesWithRETags[len(imagesWithRETags)-1].ImageDigest != image.ImageDigest) {
+			imgsWoRETags = append(imgsWoRETags, image)
+		}
 	}
-	return imagesWithRETags
+	return imagesWithRETags, imgsWoRETags
 }
 
 func buildImageIdentifier(images []*ecr.ImageDetail) []*ecr.ImageIdentifier {
